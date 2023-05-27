@@ -72,6 +72,51 @@ Of course, if the variable does not exist, you can set a default value.
 - Optional types, such as `?u32`
 - Slice types, such as `[][]const u8`
 
+## Installation
+
+Add `struct-env` as dependency in `build.zig.zon`:
+
+```
+.{
+    .name = "my-project",
+    .version = "0.1.0",
+    .dependencies = .{
+       .struct_env= .{
+           .url = "https://github.com/Hanaasagi/struct-env/archive/refs/tags/v0.1.0.tar.gz",
+           .hash = "12204fdecc8a2873ecf0ffd6567dbaa57cc3bee0bc0093fda36868a613091fae296d",
+       },
+    },
+}
+```
+
+Expose `struct-env` as a module in `build.zig`:
+
+```diff
+diff --git a/build.zig b/build.zig
+index 60fb4c2..0255ef3 100644
+--- a/build.zig
++++ b/build.zig
+@@ -15,6 +15,9 @@ pub fn build(b: *std.Build) void {
+     // set a preferred release mode, allowing the user to decide how to optimize.
+     const optimize = b.standardOptimizeOption(.{});
+
++    const opts = .{ .target = target, .optimize = optimize };
++    const struct_env_module = b.dependency("struct_env", opts).module("struct-env");
++
+     const exe = b.addExecutable(.{
+         .name = "m",
+         // In this case the main source file is merely a path, however, in more
+@@ -23,6 +26,7 @@ pub fn build(b: *std.Build) void {
+         .target = target,
+         .optimize = optimize,
+     });
++    exe.addModule("struct-env", struct_env_module);
+
+     // This declares intent for the executable to be installed into the
+     // standard location when the user invokes the "install" step (the default
+
+```
+
 ## License
 
 MIT
