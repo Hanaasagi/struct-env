@@ -120,3 +120,7 @@ index 60fb4c2..0255ef3 100644
 ## License
 
 MIT
+
+<hr>
+
+Thanks to those who have helped me on Reddit and Stack Overflow.
