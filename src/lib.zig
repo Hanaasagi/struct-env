@@ -19,6 +19,8 @@ pub const StructEnv = struct {
     env_map: std.process.EnvMap,
     /// Allocator
     allocator: std.mem.Allocator,
+    /// Common Prefix
+    prefix: ?[]const u8,
 
     const Self = @This();
 
@@ -26,10 +28,11 @@ pub const StructEnv = struct {
     //                                  Public API
     // --------------------------------------------------------------------------------
 
-    pub fn init(allocator: std.mem.Allocator) Self {
+    pub fn init(allocator: std.mem.Allocator, prefix: ?[]const u8) Self {
         return Self{
             .env_map = undefined,
             .allocator = allocator,
+            .prefix = prefix,
         };
     }
 
@@ -65,14 +68,29 @@ pub const StructEnv = struct {
 
     /// Get the env value from the key.
     /// If env is not existed, return null.
-    fn getEnv(self: Self, key: []const u8) ?[]const u8 {
-        var buf = self.allocator.alloc(u8, key.len) catch return "";
+    fn getEnv(self: Self, comptime key: []const u8) ?[]const u8 {
+        const new_key = if (self.prefix) |prefix| blk: {
+            var new_key = self.allocator.alloc(u8, key.len + prefix.len) catch return "";
+            std.mem.copy(u8, new_key[0..prefix.len], prefix);
+            std.mem.copy(u8, new_key[prefix.len..], key);
+
+            break :blk new_key;
+        } else blk: {
+            break :blk key;
+        };
+
+        var buf = self.allocator.alloc(u8, new_key.len) catch return "";
         defer self.allocator.free(buf);
 
-        const upper_key = std.ascii.upperString(buf, key);
+        const upper_key = std.ascii.upperString(buf, new_key);
+
         var value = self.env_map.get(upper_key);
         if (value == null) {
-            value = self.env_map.get(key);
+            value = self.env_map.get(new_key);
+        }
+
+        if (self.prefix != null) {
+            self.allocator.free(new_key);
         }
 
         return value;
@@ -257,14 +275,29 @@ pub const StructEnv = struct {
 
 /// Load env and return a value of the specified type T.
 pub fn fromEnv(allocator: std.mem.Allocator, comptime T: type) !T {
-    var e = StructEnv.init(allocator);
+    var e = StructEnv.init(allocator, null);
+    defer e.deinit();
+    var v = try e.fromEnv(T);
+    return v;
+}
+
+/// Load env with common prefix and return a value of the specified type T.
+pub fn fromPrefixedEnv(allocator: std.mem.Allocator, comptime T: type, comptime prefix: []const u8) !T {
+    var e = StructEnv.init(allocator, prefix);
     defer e.deinit();
     var v = try e.fromEnv(T);
     return v;
 }
 
 fn fromEnvMock(allocator: std.mem.Allocator, comptime T: type, env_map: std.process.EnvMap) !T {
-    var e = StructEnv.init(allocator);
+    var e = StructEnv.init(allocator, null);
+    defer e.deinit();
+    var v = try e.fromEnvMock(T, env_map);
+    return v;
+}
+
+fn fromPrefixedEnvMock(allocator: std.mem.Allocator, comptime T: type, env_map: std.process.EnvMap, comptime prefix: []const u8) !T {
+    var e = StructEnv.init(allocator, prefix);
     defer e.deinit();
     var v = try e.fromEnvMock(T, env_map);
     return v;
@@ -344,6 +377,10 @@ fn initTestEnv() !std.process.EnvMap {
     // For enum tests
     try env_map.put("en1", "A");
     try env_map.put("en2", "C");
+
+    // For prefixed env
+    try env_map.put("GITHUB_JOB", "job1");
+    try env_map.put("GITHUB_PATH", "a path");
 
     return env_map;
 }
@@ -522,6 +559,23 @@ test "test default type" {
     try testing.expect(t.int8 == 8);
     try testing.expect(t.singers.len == 1);
     try testing.expect(std.mem.eql(u8, t.singers[0], "zutomayo"));
+}
+
+test "test prefix env" {
+    const allocator = testing.allocator;
+
+    const env_map = try initTestEnv();
+
+    const T = struct {
+        job: []const u8,
+        path: []const u8,
+    };
+
+    const t = try fromPrefixedEnvMock(allocator, T, env_map, "GITHUB_");
+    defer free(allocator, t);
+
+    try testing.expect(std.mem.eql(u8, t.job, "job1"));
+    try testing.expect(std.mem.eql(u8, t.path, "a path"));
 }
 
 test "test real env in GitHub Action" {
