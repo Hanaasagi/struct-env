@@ -73,7 +73,7 @@ Asumming your env vars are prefixed with `APP_`, the example may look like
 
 ```zig
 const MyEnv = struct {
-    // APP_ANEM
+    // APP_NAME
     name : []const u8,
 };
 
