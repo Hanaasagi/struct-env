@@ -97,8 +97,8 @@ Add `struct-env` as dependency in `build.zig.zon`:
     .version = "0.1.0",
     .dependencies = .{
        .struct_env= .{
-           .url = "https://github.com/Hanaasagi/struct-env/archive/refs/tags/v0.1.0.tar.gz",
-           .hash = "12204fdecc8a2873ecf0ffd6567dbaa57cc3bee0bc0093fda36868a613091fae296d",
+           .url = "https://github.com/Hanaasagi/struct-env/archive/refs/tags/v0.2.0.tar.gz",
+           .hash = "1220224c50ca0178c6061fb96721fc331ed1136641ebb8a86cff55cc74481d66a4b9",
        },
     },
 }
