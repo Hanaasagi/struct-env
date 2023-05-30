@@ -66,6 +66,21 @@ Of course, if the variable does not exist, you can set a default value.
 
 `struct-env` also supports deserializing slice from comma separated env var values.
 
+## Env-var with common prefix
+
+The common pattern for prefixeing env var names for a specific app is supported using the `fromPrefixedEnv`.
+Asumming your env vars are prefixed with `APP_`, the example may look like
+
+```zig
+const MyEnv = struct {
+    // APP_ANEM
+    name : []const u8,
+};
+
+const env = try struct_env.fromPrefixedEnv(allocator, MyEnv, "APP_");
+defer struct_env.free(allocator, env);
+```
+
 ## Supported types:
 
 - Built-in types, such as `[]const u8`, `i32`
