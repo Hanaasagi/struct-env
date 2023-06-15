@@ -3,6 +3,7 @@
 <p align="center"> 𝒉𝒂𝒏𝒅𝒍𝒊𝒏𝒈 𝒆𝒏𝒗𝒊𝒓𝒐𝒏𝒎𝒆𝒏𝒕 𝒗𝒂𝒓𝒊𝒂𝒃𝒍𝒆𝒔 𝒊𝒏 𝒂 𝒕𝒚𝒑𝒆-𝒔𝒂𝒇𝒆 𝒘𝒂𝒚. </p>
 
 [![CI](https://github.com/Hanaasagi/struct-env/actions/workflows/ci.yaml/badge.svg)](https://github.com/Hanaasagi/struct-env/actions/workflows/ci.yaml)
+[![codecov](https://codecov.io/gh/Hanaasagi/struct-env/branch/master/graph/badge.svg?token=DQQZETSCW3)](https://codecov.io/gh/Hanaasagi/struct-env)
 ![](https://img.shields.io/badge/language-zig-%23ec915c)
 
 **NOTE: Minimum Supported Zig Version is 0.11.**
