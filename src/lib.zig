@@ -101,7 +101,7 @@ pub const StructEnv = struct {
         _ = self;
         if (field.default_value) |default_value| {
             const anyopaque_pointer: *anyopaque = @constCast(default_value);
-            return @ptrCast(*T, @alignCast(field.alignment, anyopaque_pointer)).*;
+            return @as(*T, @ptrCast(@alignCast( anyopaque_pointer))).*;
         }
 
         return null;
