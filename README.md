@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/Hanaasagi/struct-env/branch/master/graph/badge.svg?token=DQQZETSCW3)](https://codecov.io/gh/Hanaasagi/struct-env)
 ![](https://img.shields.io/badge/language-zig-%23ec915c)
 
-**NOTE: Minimum Supported Zig Version is 0.11.**
+**NOTE: Minimum Supported Zig Version is 0.11.0-dev.3853+cc2daae47**
 
 ## What is `struct-env`
 
