@@ -1,10 +1,20 @@
 const std = @import("std");
 const meta = std.meta;
-const trait = meta.trait;
 const assert = std.debug.assert;
 const utils = @import("./utils.zig");
 const Field = std.builtin.Type.StructField;
 const testing = std.testing;
+
+// See https://github.com/ziglang/zig/pull/18061
+pub const TraitFn = fn (type) callconv(.Inline) bool;
+pub fn is(comptime id: std.builtin.TypeId) TraitFn {
+    const Closure = struct {
+        pub inline fn trait(comptime T: type) bool {
+            return id == @typeInfo(T);
+        }
+    };
+    return Closure.trait;
+}
 
 /// Error
 pub const Error = error{
@@ -79,7 +89,7 @@ pub const StructEnv = struct {
             break :blk key;
         };
 
-        var buf = self.allocator.alloc(u8, new_key.len) catch return "";
+        const buf = self.allocator.alloc(u8, new_key.len) catch return "";
         defer self.allocator.free(buf);
 
         const upper_key = std.ascii.upperString(buf, new_key);
@@ -101,7 +111,7 @@ pub const StructEnv = struct {
         _ = self;
         if (field.default_value) |default_value| {
             const anyopaque_pointer: *anyopaque = @constCast(default_value);
-            return @as(*T, @ptrCast(@alignCast( anyopaque_pointer))).*;
+            return @as(*T, @ptrCast(@alignCast(anyopaque_pointer))).*;
         }
 
         return null;
@@ -110,7 +120,7 @@ pub const StructEnv = struct {
     /// Deserialize into a value
     fn deserializeInto(self: *Self, ptr: anytype, comptime field: ?Field) !void {
         const T = @TypeOf(ptr);
-        comptime assert(trait.is(.Pointer)(T));
+        comptime assert(is(.Pointer)(T));
 
         const C = comptime meta.Child(T);
 
@@ -171,7 +181,7 @@ pub const StructEnv = struct {
 
     /// Deserialize a boole
     fn deserializeBool(self: *Self, comptime T: type, comptime field: Field) !T {
-        var value = self.getEnv(field.name);
+        const value = self.getEnv(field.name);
         if (value) |v| {
             return try utils.str2bool(self.allocator, v);
         }
@@ -277,7 +287,7 @@ pub const StructEnv = struct {
 pub fn fromEnv(allocator: std.mem.Allocator, comptime T: type) !T {
     var e = StructEnv.init(allocator, null);
     defer e.deinit();
-    var v = try e.fromEnv(T);
+    const v = try e.fromEnv(T);
     return v;
 }
 
@@ -285,21 +295,21 @@ pub fn fromEnv(allocator: std.mem.Allocator, comptime T: type) !T {
 pub fn fromPrefixedEnv(allocator: std.mem.Allocator, comptime T: type, comptime prefix: []const u8) !T {
     var e = StructEnv.init(allocator, prefix);
     defer e.deinit();
-    var v = try e.fromEnv(T);
+    const v = try e.fromEnv(T);
     return v;
 }
 
 fn fromEnvMock(allocator: std.mem.Allocator, comptime T: type, env_map: std.process.EnvMap) !T {
     var e = StructEnv.init(allocator, null);
     defer e.deinit();
-    var v = try e.fromEnvMock(T, env_map);
+    const v = try e.fromEnvMock(T, env_map);
     return v;
 }
 
 fn fromPrefixedEnvMock(allocator: std.mem.Allocator, comptime T: type, env_map: std.process.EnvMap, comptime prefix: []const u8) !T {
     var e = StructEnv.init(allocator, prefix);
     defer e.deinit();
-    var v = try e.fromEnvMock(T, env_map);
+    const v = try e.fromEnvMock(T, env_map);
     return v;
 }
 
@@ -313,7 +323,7 @@ pub fn free(allocator: std.mem.Allocator, value: anytype) void {
             else => {
                 switch (@typeInfo(struct_field.type)) {
                     .Pointer => {
-                        var need_free = true;
+                        const need_free = true;
                         // const cur = @field(value, struct_field.name);
 
                         // if (struct_field.default_value) |default_value| {
