@@ -81,8 +81,8 @@ pub const StructEnv = struct {
     fn getEnv(self: Self, comptime key: []const u8) ?[]const u8 {
         const new_key = if (self.prefix) |prefix| blk: {
             var new_key = self.allocator.alloc(u8, key.len + prefix.len) catch return "";
-            std.mem.copy(u8, new_key[0..prefix.len], prefix);
-            std.mem.copy(u8, new_key[prefix.len..], key);
+            @memcpy(new_key[0..prefix.len], prefix);
+            @memcpy(new_key[prefix.len .. prefix.len + key.len], key);
 
             break :blk new_key;
         } else blk: {
