@@ -16,9 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: goto-bus-stop/setup-zig@v2
-      - uses: Hanaasagi/zig-action-cache@v1.1.1
-        with:
-          cache-on-failure: true
+      # - uses: Hanaasagi/zig-action-cache@v1.1.1
+      #   with:
+      #     cache-on-failure: false
       - run: zig version
       - run: zig env
       - run: ls

@@ -20,8 +20,8 @@ pub fn build(b: *std.Build) void {
     _ = dep_opts;
 
     _ = b.addModule("struct-env", .{
-        .source_file = .{ .path = "src/lib.zig" },
-        .dependencies = &.{},
+        .root_source_file = .{ .path = "src/lib.zig" },
+        .imports = &.{},
     });
 
     // const lib = b.addStaticLibrary(.{
