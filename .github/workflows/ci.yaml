@@ -5,8 +5,6 @@ on:
     branches: ["master"]
   pull_request:
     branches: ["master"]
-  schedule:
-    - cron: "0 0 * * 0"
   workflow_dispatch:
 
 jobs:
@@ -16,14 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: goto-bus-stop/setup-zig@v2
-      # - uses: Hanaasagi/zig-action-cache@v1.1.1
-      #   with:
-      #     cache-on-failure: false
+        with:
+          version: 0.13.0
       - run: zig version
       - run: zig env
-      - run: ls
-      - run: ls zig-cache || echo 'no zig-cache'
-      - run: rm -rf zig-cache/o/*/test
       - name: Build
         run: zig build --verbose
       - name: Run Tests
@@ -31,9 +25,9 @@ jobs:
       - name: Install kcov
         run: sudo apt-get install -y kcov
       - name: Generate coverage
-        run: kcov $PWD/kcov-out ./zig-cache/o/*/test
+        run: kcov $PWD/kcov-out ./.zig-cache/o/*/test
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           directory: ./kcov-out/test

@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/Hanaasagi/struct-env/branch/master/graph/badge.svg?token=DQQZETSCW3)](https://codecov.io/gh/Hanaasagi/struct-env)
 ![](https://img.shields.io/badge/language-zig-%23ec915c)
 
-**NOTE: Minimum Supported Zig Version is 0.12.0-dev.2058+04ac028a2**
+**NOTE: Supported Zig Version is 0.13.0**
 
 ## What is `struct-env`
 
@@ -87,51 +87,6 @@ defer struct_env.free(allocator, env);
 - Built-in types, such as `[]const u8`, `i32`
 - Optional types, such as `?u32`
 - Slice types, such as `[][]const u8`
-
-## Installation
-
-Add `struct-env` as dependency in `build.zig.zon`:
-
-```
-.{
-    .name = "my-project",
-    .version = "0.1.0",
-    .dependencies = .{
-       .struct_env= .{
-           .url = "https://github.com/Hanaasagi/struct-env/archive/refs/tags/v0.2.0.tar.gz",
-           .hash = "1220224c50ca0178c6061fb96721fc331ed1136641ebb8a86cff55cc74481d66a4b9",
-       },
-    },
-}
-```
-
-Expose `struct-env` as a module in `build.zig`:
-
-```diff
-diff --git a/build.zig b/build.zig
-index 60fb4c2..0255ef3 100644
---- a/build.zig
-+++ b/build.zig
-@@ -15,6 +15,9 @@ pub fn build(b: *std.Build) void {
-     // set a preferred release mode, allowing the user to decide how to optimize.
-     const optimize = b.standardOptimizeOption(.{});
-
-+    const opts = .{ .target = target, .optimize = optimize };
-+    const struct_env_module = b.dependency("struct_env", opts).module("struct-env");
-+
-     const exe = b.addExecutable(.{
-         .name = "m",
-         // In this case the main source file is merely a path, however, in more
-@@ -23,6 +26,7 @@ pub fn build(b: *std.Build) void {
-         .target = target,
-         .optimize = optimize,
-     });
-+    exe.addModule("struct-env", struct_env_module);
-
-     // This declares intent for the executable to be installed into the
-     // standard location when the user invokes the "install" step (the default
-
-```
 
 ## License
 
