@@ -109,7 +109,7 @@ pub const StructEnv = struct {
     /// Get the default value of a struct field, return null if there is no default value.
     fn getDefault(self: Self, comptime T: type, comptime field: Field) ?T {
         _ = self;
-        if (field.default_value) |default_value| {
+        if (field.default_value_ptr) |default_value| {
             const anyopaque_pointer: *anyopaque = @constCast(default_value);
             return @as(*T, @ptrCast(@alignCast(anyopaque_pointer))).*;
         }
@@ -120,7 +120,7 @@ pub const StructEnv = struct {
     /// Deserialize into a value
     fn deserializeInto(self: *Self, ptr: anytype, comptime field: ?Field) !void {
         const T = @TypeOf(ptr);
-        comptime assert(is(.Pointer)(T));
+        comptime assert(is(.pointer)(T));
 
         const C = comptime meta.Child(T);
 
@@ -128,16 +128,16 @@ pub const StructEnv = struct {
             []const u8 => try self.deserializeString(C, field.?),
             // ?[]const u8 => null,
             else => switch (@typeInfo(C)) {
-                .Struct => try self.deserializeStruct(C),
-                .Enum => try self.deserializeEnum(C, field.?),
-                .Optional => try self.deserializeOptional(C, field.?),
-                .Bool => try self.deserializeBool(C, field.?),
+                .@"struct" => try self.deserializeStruct(C),
+                .@"enum" => try self.deserializeEnum(C, field.?),
+                .optional => try self.deserializeOptional(C, field.?),
+                .bool => try self.deserializeBool(C, field.?),
                 // .Int => |info| info.bits,
-                .Int => try self.deserializeInt(C, field.?),
-                .Float => try self.deserializeFloat(C, field.?),
+                .int => try self.deserializeInt(C, field.?),
+                .float => try self.deserializeFloat(C, field.?),
                 // .Array => try self.deserializeArray(C),
                 // .Vector => try self.deserializeVector(C),
-                .Pointer => try self.deserializePointer(C, field.?),
+                .pointer => try self.deserializePointer(C, field.?),
 
                 // ...
                 else => @compileError("Unsupported deserialization type " ++ @typeName(C) ++ "\n"),
@@ -195,7 +195,7 @@ pub const StructEnv = struct {
         if (value) |v| {
             const C = comptime meta.Child(T);
             // TODO: delimiter
-            var it = std.mem.split(u8, v, ",");
+            var it = std.mem.splitSequence(u8, v, ",");
             var new_value = std.ArrayList(C).init(self.allocator);
             defer new_value.deinit();
 
@@ -204,9 +204,9 @@ pub const StructEnv = struct {
                     []const u8 => try self.allocator.dupe(u8, s),
                     // []const u8 => s,
                     else => switch (@typeInfo(C)) {
-                        .Bool => try utils.str2bool(self.allocator, s),
-                        .Int => try std.fmt.parseInt(C, s, 0),
-                        .Float => try std.fmt.parseFloat(C, s, 0),
+                        .bool => try utils.str2bool(self.allocator, s),
+                        .int => try std.fmt.parseInt(C, s, 0),
+                        .float => try std.fmt.parseFloat(C, s, 0),
                         else => @compileError("Unsupported deserialization type" ++ @typeName(C) ++ "\n"),
                     },
                 };
@@ -226,9 +226,9 @@ pub const StructEnv = struct {
                 const item = switch (C) {
                     []const u8 => try self.allocator.dupe(u8, s),
                     else => switch (@typeInfo(C)) {
-                        .Bool => s,
-                        .Int => s,
-                        .Float => s,
+                        .bool => s,
+                        .int => s,
+                        .float => s,
                         else => @compileError("Unsupported deserialization type" ++ @typeName(C) ++ "\n"),
                     },
                 };
@@ -322,7 +322,7 @@ pub fn free(allocator: std.mem.Allocator, value: anytype) void {
             []const u8 => allocator.free(@field(value, struct_field.name)),
             else => {
                 switch (@typeInfo(struct_field.type)) {
-                    .Pointer => {
+                    .pointer => {
                         const need_free = true;
                         // const cur = @field(value, struct_field.name);
 
