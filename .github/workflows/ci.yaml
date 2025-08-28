@@ -12,10 +12,10 @@ jobs:
     name: Tests on Linux
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: goto-bus-stop/setup-zig@v2
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
         with:
-          version: 0.14.0
+          version: 0.15.1
       - run: zig version
       - run: zig env
       - name: Build
