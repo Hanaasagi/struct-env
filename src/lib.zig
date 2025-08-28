@@ -5,11 +5,10 @@ const utils = @import("./utils.zig");
 const Field = std.builtin.Type.StructField;
 const testing = std.testing;
 
-// See https://github.com/ziglang/zig/pull/18061
-pub const TraitFn = fn (type) callconv(.Inline) bool;
+pub const TraitFn = fn (type) bool;
 pub fn is(comptime id: std.builtin.TypeId) TraitFn {
     const Closure = struct {
-        pub inline fn trait(comptime T: type) bool {
+        pub fn trait(comptime T: type) bool {
             return id == @typeInfo(T);
         }
     };
@@ -196,8 +195,8 @@ pub const StructEnv = struct {
             const C = comptime meta.Child(T);
             // TODO: delimiter
             var it = std.mem.splitSequence(u8, v, ",");
-            var new_value = std.ArrayList(C).init(self.allocator);
-            defer new_value.deinit();
+            var new_value = std.ArrayList(C){};
+            defer new_value.deinit(self.allocator);
 
             while (it.next()) |s| {
                 const item = switch (C) {
@@ -210,17 +209,17 @@ pub const StructEnv = struct {
                         else => @compileError("Unsupported deserialization type" ++ @typeName(C) ++ "\n"),
                     },
                 };
-                try new_value.append(item);
+                try new_value.append(self.allocator, item);
             }
 
-            return new_value.toOwnedSlice();
+            return try new_value.toOwnedSlice(self.allocator);
         }
 
         const default_value = self.getDefault(T, field);
         if (default_value) |v| {
             const C = comptime meta.Child(T);
-            var new_value = std.ArrayList(C).init(self.allocator);
-            defer new_value.deinit();
+            var new_value = std.ArrayList(C){};
+            defer new_value.deinit(self.allocator);
 
             for (v) |s| {
                 const item = switch (C) {
@@ -232,10 +231,10 @@ pub const StructEnv = struct {
                         else => @compileError("Unsupported deserialization type" ++ @typeName(C) ++ "\n"),
                     },
                 };
-                try new_value.append(item);
+                try new_value.append(self.allocator, item);
             }
 
-            return new_value.toOwnedSlice();
+            return try new_value.toOwnedSlice(self.allocator);
         }
 
         return Error.NotExist;
