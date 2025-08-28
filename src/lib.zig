@@ -30,6 +30,8 @@ pub const StructEnv = struct {
     allocator: std.mem.Allocator,
     /// Common Prefix
     prefix: ?[]const u8,
+    /// Whether env_map has been initialized and must be deinitialized
+    env_inited: bool,
 
     const Self = @This();
 
@@ -42,21 +44,27 @@ pub const StructEnv = struct {
             .env_map = undefined,
             .allocator = allocator,
             .prefix = prefix,
+            .env_inited = false,
         };
     }
 
     pub fn deinit(self: *Self) void {
-        self.env_map.deinit();
+        if (self.env_inited) {
+            self.env_map.deinit();
+            self.env_inited = false;
+        }
     }
 
     pub fn fromEnv(self: *Self, comptime T: type) !T {
-        var env_map = try std.process.getEnvMap(self.allocator);
-        errdefer env_map.deinit();
-
+        const env_map = try std.process.getEnvMap(self.allocator);
         self.env_map = env_map;
+        self.env_inited = true;
 
         var value: T = undefined;
-        try self.deserializeInto(&value, null);
+        self.deserializeInto(&value, null) catch |e| {
+            self.deinit();
+            return e;
+        };
 
         return value;
     }
@@ -68,6 +76,7 @@ pub const StructEnv = struct {
     /// This is for unittest mock!
     fn fromEnvMock(self: *Self, comptime T: type, env_map: std.process.EnvMap) !T {
         self.env_map = env_map;
+        self.env_inited = true;
 
         var value: T = undefined;
         try self.deserializeInto(&value, null);
@@ -205,7 +214,7 @@ pub const StructEnv = struct {
                     else => switch (@typeInfo(C)) {
                         .bool => try utils.str2bool(self.allocator, s),
                         .int => try std.fmt.parseInt(C, s, 0),
-                        .float => try std.fmt.parseFloat(C, s, 0),
+                        .float => try std.fmt.parseFloat(C, s),
                         else => @compileError("Unsupported deserialization type" ++ @typeName(C) ++ "\n"),
                     },
                 };
