@@ -2,6 +2,7 @@
     .name = .struct_env,
     .fingerprint=0x1ec612b14680944c,
     .version = "0.4.1",
+    .minimum_zig_version = "0.15.1",
     .dependencies = .{},
     .paths = .{""},
 }
