@@ -6,9 +6,9 @@ const MyEnv = struct {
     path: []const u8,
 };
 
-pub fn main() !void {
-    const allocator = std.heap.page_allocator;
-    const env = try struct_env.fromPrefixedEnv(allocator, MyEnv, "GITHUB_");
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const env = try struct_env.fromPrefixedEnv(allocator, MyEnv, init.environ_map, "GITHUB_");
     defer struct_env.free(allocator, env);
 
     std.debug.print("GITHUB_JOB is {s}\n", .{env.job});

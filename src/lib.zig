@@ -4,6 +4,7 @@ const assert = std.debug.assert;
 const utils = @import("./utils.zig");
 const Field = std.builtin.Type.StructField;
 const testing = std.testing;
+const EnvMap = std.process.Environ.Map;
 
 pub const TraitFn = fn (type) bool;
 pub fn is(comptime id: std.builtin.TypeId) TraitFn {
@@ -25,13 +26,11 @@ pub const Error = error{
 
 pub const StructEnv = struct {
     /// Process env
-    env_map: std.process.EnvMap,
+    env_map: *const EnvMap,
     /// Allocator
     allocator: std.mem.Allocator,
     /// Common Prefix
     prefix: ?[]const u8,
-    /// Whether env_map has been initialized and must be deinitialized
-    env_inited: bool,
 
     const Self = @This();
 
@@ -39,45 +38,15 @@ pub const StructEnv = struct {
     //                                  Public API
     // --------------------------------------------------------------------------------
 
-    pub fn init(allocator: std.mem.Allocator, prefix: ?[]const u8) Self {
+    pub fn init(allocator: std.mem.Allocator, env_map: *const EnvMap, prefix: ?[]const u8) Self {
         return Self{
-            .env_map = undefined,
+            .env_map = env_map,
             .allocator = allocator,
             .prefix = prefix,
-            .env_inited = false,
         };
-    }
-
-    pub fn deinit(self: *Self) void {
-        if (self.env_inited) {
-            self.env_map.deinit();
-            self.env_inited = false;
-        }
     }
 
     pub fn fromEnv(self: *Self, comptime T: type) !T {
-        const env_map = try std.process.getEnvMap(self.allocator);
-        self.env_map = env_map;
-        self.env_inited = true;
-
-        var value: T = undefined;
-        self.deserializeInto(&value, null) catch |e| {
-            self.deinit();
-            return e;
-        };
-
-        return value;
-    }
-
-    // --------------------------------------------------------------------------------
-    //                                  Private API
-    // --------------------------------------------------------------------------------
-
-    /// This is for unittest mock!
-    fn fromEnvMock(self: *Self, comptime T: type, env_map: std.process.EnvMap) !T {
-        self.env_map = env_map;
-        self.env_inited = true;
-
         var value: T = undefined;
         try self.deserializeInto(&value, null);
 
@@ -204,7 +173,7 @@ pub const StructEnv = struct {
             const C = comptime meta.Child(T);
             // TODO: delimiter
             var it = std.mem.splitSequence(u8, v, ",");
-            var new_value = std.ArrayList(C){};
+            var new_value: std.ArrayList(C) = .empty;
             defer new_value.deinit(self.allocator);
 
             while (it.next()) |s| {
@@ -227,7 +196,7 @@ pub const StructEnv = struct {
         const default_value = self.getDefault(T, field);
         if (default_value) |v| {
             const C = comptime meta.Child(T);
-            var new_value = std.ArrayList(C){};
+            var new_value: std.ArrayList(C) = .empty;
             defer new_value.deinit(self.allocator);
 
             for (v) |s| {
@@ -292,32 +261,16 @@ pub const StructEnv = struct {
 };
 
 /// Load env and return a value of the specified type T.
-pub fn fromEnv(allocator: std.mem.Allocator, comptime T: type) !T {
-    var e = StructEnv.init(allocator, null);
-    defer e.deinit();
+pub fn fromEnv(allocator: std.mem.Allocator, comptime T: type, env_map: *const EnvMap) !T {
+    var e = StructEnv.init(allocator, env_map, null);
     const v = try e.fromEnv(T);
     return v;
 }
 
 /// Load env with common prefix and return a value of the specified type T.
-pub fn fromPrefixedEnv(allocator: std.mem.Allocator, comptime T: type, comptime prefix: []const u8) !T {
-    var e = StructEnv.init(allocator, prefix);
-    defer e.deinit();
+pub fn fromPrefixedEnv(allocator: std.mem.Allocator, comptime T: type, env_map: *const EnvMap, comptime prefix: []const u8) !T {
+    var e = StructEnv.init(allocator, env_map, prefix);
     const v = try e.fromEnv(T);
-    return v;
-}
-
-fn fromEnvMock(allocator: std.mem.Allocator, comptime T: type, env_map: std.process.EnvMap) !T {
-    var e = StructEnv.init(allocator, null);
-    defer e.deinit();
-    const v = try e.fromEnvMock(T, env_map);
-    return v;
-}
-
-fn fromPrefixedEnvMock(allocator: std.mem.Allocator, comptime T: type, env_map: std.process.EnvMap, comptime prefix: []const u8) !T {
-    var e = StructEnv.init(allocator, prefix);
-    defer e.deinit();
-    const v = try e.fromEnvMock(T, env_map);
     return v;
 }
 
@@ -367,8 +320,8 @@ pub fn free(allocator: std.mem.Allocator, value: anytype) void {
 //                                   Testing
 // --------------------------------------------------------------------------------
 
-fn initTestEnv() !std.process.EnvMap {
-    var env_map = try std.process.getEnvMap(testing.allocator);
+fn initTestEnv() !EnvMap {
+    var env_map = EnvMap.init(testing.allocator);
     // For string tests
     try env_map.put("HOME", "/home/mitsuha");
 
@@ -406,13 +359,14 @@ fn initTestEnv() !std.process.EnvMap {
 test "test string type" {
     const allocator = testing.allocator;
 
-    const env_map = try initTestEnv();
-
     const T = struct {
         home: []const u8,
     };
 
-    const t = try fromEnvMock(allocator, T, env_map);
+    var env_map = try initTestEnv();
+    defer env_map.deinit();
+
+    const t = try fromEnv(allocator, T, &env_map);
     defer free(allocator, t);
 
     try testing.expect(std.mem.eql(u8, t.home, "/home/mitsuha"));
@@ -421,14 +375,15 @@ test "test string type" {
 test "test boolean type" {
     const allocator = testing.allocator;
 
-    const env_map = try initTestEnv();
+    var env_map = try initTestEnv();
+    defer env_map.deinit();
 
     const T = struct {
         true_value: bool,
         false_value: bool,
     };
 
-    const t = try fromEnvMock(allocator, T, env_map);
+    const t = try fromEnv(allocator, T, &env_map);
     defer free(allocator, t);
 
     try testing.expect(t.true_value == true);
@@ -438,7 +393,8 @@ test "test boolean type" {
 test "test int type" {
     const allocator = testing.allocator;
 
-    const env_map = try initTestEnv();
+    var env_map = try initTestEnv();
+    defer env_map.deinit();
 
     const T = struct {
         int8: i8,
@@ -448,7 +404,7 @@ test "test int type" {
         usize: usize,
     };
 
-    const t = try fromEnvMock(allocator, T, env_map);
+    const t = try fromEnv(allocator, T, &env_map);
     defer free(allocator, t);
 
     try testing.expect(t.int8 == 8);
@@ -461,13 +417,14 @@ test "test int type" {
 test "test float type" {
     const allocator = testing.allocator;
 
-    const env_map = try initTestEnv();
+    var env_map = try initTestEnv();
+    defer env_map.deinit();
 
     const T = struct {
         float: f64,
     };
 
-    const t = try fromEnvMock(allocator, T, env_map);
+    const t = try fromEnv(allocator, T, &env_map);
     defer free(allocator, t);
 
     try testing.expect(t.float == 1.25);
@@ -476,7 +433,8 @@ test "test float type" {
 test "test enum type" {
     const allocator = testing.allocator;
 
-    const env_map = try initTestEnv();
+    var env_map = try initTestEnv();
+    defer env_map.deinit();
 
     const E = enum {
         A,
@@ -488,7 +446,7 @@ test "test enum type" {
         en2: E,
     };
 
-    const t = try fromEnvMock(allocator, T, env_map);
+    const t = try fromEnv(allocator, T, &env_map);
     defer free(allocator, t);
 
     try testing.expect(t.en1 == .A);
@@ -498,7 +456,8 @@ test "test enum type" {
 test "test optional type" {
     const allocator = testing.allocator;
 
-    const env_map = try initTestEnv();
+    var env_map = try initTestEnv();
+    defer env_map.deinit();
 
     const E = enum {
         A,
@@ -513,7 +472,7 @@ test "test optional type" {
         en20: ?E,
     };
 
-    const t = try fromEnvMock(allocator, T, env_map);
+    const t = try fromEnv(allocator, T, &env_map);
     defer free(allocator, t);
 
     try testing.expect(std.mem.eql(u8, t.home, "/home/mitsuha"));
@@ -525,13 +484,14 @@ test "test optional type" {
 test "test multi integer type" {
     const allocator = testing.allocator;
 
-    const env_map = try initTestEnv();
+    var env_map = try initTestEnv();
+    defer env_map.deinit();
 
     const T = struct {
         ints: []u8,
     };
 
-    const t = try fromEnvMock(allocator, T, env_map);
+    const t = try fromEnv(allocator, T, &env_map);
     defer free(allocator, t);
 
     try testing.expect(t.ints.len == 4);
@@ -540,13 +500,14 @@ test "test multi integer type" {
 test "test multi string type" {
     const allocator = testing.allocator;
 
-    const env_map = try initTestEnv();
+    var env_map = try initTestEnv();
+    defer env_map.deinit();
 
     const T = struct {
         animes: [][]const u8,
     };
 
-    const t = try fromEnvMock(allocator, T, env_map);
+    const t = try fromEnv(allocator, T, &env_map);
     defer free(allocator, t);
 
     try testing.expect(t.animes.len == 2);
@@ -557,7 +518,8 @@ test "test multi string type" {
 test "test default type" {
     const allocator = testing.allocator;
 
-    const env_map = try initTestEnv();
+    var env_map = try initTestEnv();
+    defer env_map.deinit();
 
     const T = struct {
         home: []const u8 = "/home/milet",
@@ -568,7 +530,7 @@ test "test default type" {
         singers: []const []const u8 = &.{"zutomayo"},
     };
 
-    const t = try fromEnvMock(allocator, T, env_map);
+    const t = try fromEnv(allocator, T, &env_map);
     defer free(allocator, t);
 
     try testing.expect(std.mem.eql(u8, t.home, "/home/mitsuha"));
@@ -582,34 +544,18 @@ test "test default type" {
 test "test prefix env" {
     const allocator = testing.allocator;
 
-    const env_map = try initTestEnv();
+    var env_map = try initTestEnv();
+    defer env_map.deinit();
 
     const T = struct {
         job: []const u8,
         path: []const u8,
     };
 
-    const t = try fromPrefixedEnvMock(allocator, T, env_map, "GITHUB_");
+    const t = try fromPrefixedEnv(allocator, T, &env_map, "GITHUB_");
     defer free(allocator, t);
 
     try testing.expect(std.mem.eql(u8, t.job, "job1"));
     try testing.expect(std.mem.eql(u8, t.path, "a path"));
 }
 
-test "test real env in GitHub Action" {
-    const allocator = testing.allocator;
-    var env_map = try std.process.getEnvMap(allocator);
-    defer env_map.deinit();
-
-    // Always set to true in GitHub Action
-    if (env_map.get("CI")) |v| {
-        if (std.mem.eql(u8, v, "true")) {
-            // TODO:
-            // const T = struct {
-
-            // };
-            // const t = try fromEnv(allocator, T);
-            // defer free(allocator, t);
-        }
-    }
-}

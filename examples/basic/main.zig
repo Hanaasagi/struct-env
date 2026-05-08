@@ -7,9 +7,9 @@ const MyEnv = struct {
     bar: []const u8 = "bar",
 };
 
-pub fn main() !void {
-    const allocator = std.heap.page_allocator;
-    const env = try struct_env.fromEnv(allocator, MyEnv);
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const env = try struct_env.fromEnv(allocator, MyEnv, init.environ_map);
     defer struct_env.free(allocator, env);
 
     std.debug.print("HOME is {s}\n", .{env.home});

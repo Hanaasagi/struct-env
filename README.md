@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/Hanaasagi/struct-env/branch/master/graph/badge.svg?token=DQQZETSCW3)](https://codecov.io/gh/Hanaasagi/struct-env)
 ![](https://img.shields.io/badge/language-zig-%23ec915c)
 
-**NOTE: Supported Zig Version is 0.15.1**
+**NOTE: Supported Zig Version is 0.16.0**
 
 ## What is `struct-env`
 
@@ -29,10 +29,10 @@ const MyEnv = struct {
     bar: []const u8 = "bar",
 };
 
-pub fn main() !void {
-    const allocator = std.heap.page_allocator;
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
 
-    const env = try struct_env.fromEnv(allocator, MyEnv);
+    const env = try struct_env.fromEnv(allocator, MyEnv, init.environ_map);
     defer struct_env.free(allocator, env);
 
     std.debug.print("HOME is {s}\n", .{env.home});
@@ -78,9 +78,12 @@ const MyEnv = struct {
     name : []const u8,
 };
 
-const env = try struct_env.fromPrefixedEnv(allocator, MyEnv, "APP_");
+const env = try struct_env.fromPrefixedEnv(allocator, MyEnv, init.environ_map, "APP_");
 defer struct_env.free(allocator, env);
 ```
+
+Starting with Zig 0.16, environment variables are no longer globally queried by the standard library.
+Applications receive environment data through `main(init: std.process.Init)`, and `struct-env` deserializes the `init.environ_map` provided by the application.
 
 ## Supported types:
 
