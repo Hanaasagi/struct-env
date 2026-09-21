@@ -30,10 +30,7 @@ const MyEnv = struct {
 };
 
 pub fn main(init: std.process.Init) !void {
-    const allocator = init.gpa;
-
-    const env = try struct_env.fromEnv(allocator, MyEnv, init.environ_map);
-    defer struct_env.free(allocator, env);
+    const env = try struct_env.fromEnv(MyEnv, init.environ_map);
 
     std.debug.print("HOME is {s}\n", .{env.home});
     std.debug.print("FOO  is {any}\n", .{env.foo == null});
@@ -78,8 +75,7 @@ const MyEnv = struct {
     name : []const u8,
 };
 
-const env = try struct_env.fromPrefixedEnv(allocator, MyEnv, init.environ_map, "APP_");
-defer struct_env.free(allocator, env);
+const env = try struct_env.fromPrefixedEnv(MyEnv, init.environ_map, "APP_");
 ```
 
 Starting with Zig 0.16, environment variables are no longer globally queried by the standard library.
