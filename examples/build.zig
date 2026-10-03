@@ -13,6 +13,10 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const mod = b.addModule("struct-env", .{
+        .root_source_file = b.path("../src/lib.zig"),
+    });
+
     inline for (examples) |e| {
         const example_path = e ++ "/main.zig";
         const exe_name = "example-" ++ e;
@@ -26,9 +30,6 @@ pub fn build(b: *std.Build) void {
                 .target = target,
                 .optimize = optimize,
             }),
-        });
-        const mod = b.addModule("struct-env", .{
-            .root_source_file = b.path("../src/lib.zig"),
         });
         exe.root_module.addImport("struct-env", mod);
 
