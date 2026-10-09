@@ -2,7 +2,7 @@ const std = @import("std");
 const meta = std.meta;
 const assert = std.debug.assert;
 const utils = @import("./utils.zig");
-const Field = std.builtin.Type.StructField;
+const FieldAttrs = std.lang.Type.Struct.FieldAttributes;
 const testing = std.testing;
 const EnvMap = std.process.Environ.Map;
 
@@ -48,7 +48,7 @@ pub const StructEnv = struct {
 
     pub fn fromEnv(self: *Self, comptime T: type) !T {
         var value: T = undefined;
-        try self.deserializeInto(&value, null);
+        try self.deserializeInto(&value, null, null);
 
         return value;
     }
@@ -84,37 +84,32 @@ pub const StructEnv = struct {
     }
 
     /// Get the default value of a struct field, return null if there is no default value.
-    fn getDefault(self: Self, comptime T: type, comptime field: Field) ?T {
+    fn getDefault(self: Self, comptime T: type, comptime attrs: FieldAttrs) ?T {
         _ = self;
-        if (field.default_value_ptr) |default_value| {
-            const anyopaque_pointer: *anyopaque = @constCast(default_value);
-            return @as(*T, @ptrCast(@alignCast(anyopaque_pointer))).*;
-        }
-
-        return null;
+        return attrs.defaultValue(T);
     }
 
     /// Deserialize into a value
-    fn deserializeInto(self: *Self, ptr: anytype, comptime field: ?Field) !void {
+    fn deserializeInto(self: *Self, ptr: anytype, comptime field_name: ?[:0]const u8, comptime field_attrs: ?FieldAttrs) !void {
         const T = @TypeOf(ptr);
         comptime assert(is(.pointer)(T));
 
         const C = comptime meta.Child(T);
 
         ptr.* = switch (C) {
-            []const u8 => try self.deserializeString(C, field.?),
+            []const u8 => try self.deserializeString(C, field_name.?, field_attrs.?),
             // ?[]const u8 => null,
             else => switch (@typeInfo(C)) {
                 .@"struct" => try self.deserializeStruct(C),
-                .@"enum" => try self.deserializeEnum(C, field.?),
-                .optional => try self.deserializeOptional(C, field.?),
-                .bool => try self.deserializeBool(C, field.?),
+                .@"enum" => try self.deserializeEnum(C, field_name.?, field_attrs.?),
+                .optional => try self.deserializeOptional(C, field_name.?, field_attrs.?),
+                .bool => try self.deserializeBool(C, field_name.?, field_attrs.?),
                 // .Int => |info| info.bits,
-                .int => try self.deserializeInt(C, field.?),
-                .float => try self.deserializeFloat(C, field.?),
+                .int => try self.deserializeInt(C, field_name.?, field_attrs.?),
+                .float => try self.deserializeFloat(C, field_name.?, field_attrs.?),
                 // .Array => try self.deserializeArray(C),
                 // .Vector => try self.deserializeVector(C),
-                .pointer => try self.deserializePointer(C, field.?),
+                .pointer => try self.deserializePointer(C, field_name.?, field_attrs.?),
 
                 // ...
                 else => @compileError("Unsupported deserialization type " ++ @typeName(C) ++ "\n"),
@@ -123,10 +118,10 @@ pub const StructEnv = struct {
     }
 
     /// Deserialize a string
-    fn deserializeString(self: *Self, comptime T: type, comptime field: Field) !T {
-        var value = self.getEnv(field.name);
+    fn deserializeString(self: *Self, comptime T: type, comptime field_name: [:0]const u8, comptime field_attrs: FieldAttrs) !T {
+        var value = self.getEnv(field_name);
         if (value == null) {
-            value = self.getDefault(T, field);
+            value = self.getDefault(T, field_attrs);
         }
         if (value) |v| {
             const new_v = try self.allocator.dupe(u8, v);
@@ -137,38 +132,38 @@ pub const StructEnv = struct {
     }
 
     /// Deserialize a int
-    fn deserializeInt(self: *Self, comptime T: type, comptime field: Field) !T {
-        const value = self.getEnv(field.name);
+    fn deserializeInt(self: *Self, comptime T: type, comptime field_name: [:0]const u8, comptime field_attrs: FieldAttrs) !T {
+        const value = self.getEnv(field_name);
         if (value) |v| {
             return try std.fmt.parseInt(T, v, 0);
         }
 
-        return self.getDefault(T, field) orelse Error.NotExist;
+        return self.getDefault(T, field_attrs) orelse Error.NotExist;
     }
 
     /// Deserialize a float
-    fn deserializeFloat(self: *Self, comptime T: type, comptime field: Field) !T {
-        const value = self.getEnv(field.name);
+    fn deserializeFloat(self: *Self, comptime T: type, comptime field_name: [:0]const u8, comptime field_attrs: FieldAttrs) !T {
+        const value = self.getEnv(field_name);
         if (value) |v| {
             return try std.fmt.parseFloat(T, v);
         }
 
-        return self.getDefault(T, field) orelse Error.NotExist;
+        return self.getDefault(T, field_attrs) orelse Error.NotExist;
     }
 
     /// Deserialize a boole
-    fn deserializeBool(self: *Self, comptime T: type, comptime field: Field) !T {
-        const value = self.getEnv(field.name);
+    fn deserializeBool(self: *Self, comptime T: type, comptime field_name: [:0]const u8, comptime field_attrs: FieldAttrs) !T {
+        const value = self.getEnv(field_name);
         if (value) |v| {
             return try utils.str2bool(self.allocator, v);
         }
 
-        return self.getDefault(T, field) orelse Error.NotExist;
+        return self.getDefault(T, field_attrs) orelse Error.NotExist;
     }
 
     /// Deserialize a slice
-    fn deserializePointer(self: *Self, comptime T: type, comptime field: Field) !T {
-        const value = self.getEnv(field.name);
+    fn deserializePointer(self: *Self, comptime T: type, comptime field_name: [:0]const u8, comptime field_attrs: FieldAttrs) !T {
+        const value = self.getEnv(field_name);
         if (value) |v| {
             const C = comptime meta.Child(T);
             // TODO: delimiter
@@ -193,7 +188,7 @@ pub const StructEnv = struct {
             return try new_value.toOwnedSlice(self.allocator);
         }
 
-        const default_value = self.getDefault(T, field);
+        const default_value = self.getDefault(T, field_attrs);
         if (default_value) |v| {
             const C = comptime meta.Child(T);
             var new_value: std.ArrayList(C) = .empty;
@@ -219,10 +214,10 @@ pub const StructEnv = struct {
     }
 
     /// Deserialize an string enum
-    fn deserializeEnum(self: *Self, comptime T: type, comptime field: Field) !T {
+    fn deserializeEnum(self: *Self, comptime T: type, comptime field_name: [:0]const u8, comptime field_attrs: FieldAttrs) !T {
         // const I = comptime meta.Tag(T);
 
-        const value = self.getEnv(field.name);
+        const value = self.getEnv(field_name);
         if (value) |v| {
             if (std.meta.stringToEnum(T, v)) |vv| {
                 return vv;
@@ -230,26 +225,24 @@ pub const StructEnv = struct {
             return Error.InvalidValue;
         }
 
-        return self.getDefault(T, field) orelse Error.NotExist;
+        return self.getDefault(T, field_attrs) orelse Error.NotExist;
     }
 
     /// Deserialize a struct
     fn deserializeStruct(self: *Self, comptime T: type) !T {
         var value: T = undefined;
-        inline for (meta.fields(T)) |struct_field| {
-            // std.debug.print("field name is {s}\n", .{struct_field.name});
-            // field.name = struct_field.name;
-            // self.field_default_value = struct_field.default_value;
-            try self.deserializeInto(&@field(value, struct_field.name), struct_field);
+        const info = @typeInfo(T).@"struct";
+        inline for (info.field_names, info.field_attrs) |field_name, field_attr| {
+            try self.deserializeInto(&@field(value, field_name), field_name, field_attr);
         }
         return value;
     }
 
     /// Deserialize an optional
-    fn deserializeOptional(self: *Self, comptime T: type, comptime field: Field) !T {
+    fn deserializeOptional(self: *Self, comptime T: type, comptime field_name: [:0]const u8, comptime field_attrs: FieldAttrs) !T {
         const C = comptime meta.Child(T);
         var value: C = undefined;
-        self.deserializeInto(&value, field) catch |e| {
+        self.deserializeInto(&value, field_name, field_attrs) catch |e| {
             if (e == Error.NotExist) {
                 return null;
             }
@@ -277,36 +270,24 @@ pub fn fromPrefixedEnv(allocator: std.mem.Allocator, comptime T: type, env_map: 
 /// Free a value created by this lib.
 pub fn free(allocator: std.mem.Allocator, value: anytype) void {
     const T = @TypeOf(value);
+    const info = @typeInfo(T).@"struct";
 
-    inline for (meta.fields(T)) |struct_field| {
-        switch (struct_field.type) {
-            []const u8 => allocator.free(@field(value, struct_field.name)),
+    inline for (info.field_names, info.field_types) |field_name, field_type| {
+        switch (field_type) {
+            []const u8 => allocator.free(@field(value, field_name)),
             else => {
-                switch (@typeInfo(struct_field.type)) {
+                switch (@typeInfo(field_type)) {
                     .pointer => {
                         const need_free = true;
-                        // const cur = @field(value, struct_field.name);
 
-                        // if (struct_field.default_value) |default_value| {
-                        //     const anyopaque_pointer: *anyopaque = @constCast(default_value);
-                        //     var dflt_ptr = @ptrCast(*struct_field.type, @alignCast(struct_field.alignment, anyopaque_pointer));
-                        //     // std.debug.print("\r\n{d} {d}\r\n", .{ &cur, dflt_ptr });
-                        //     // std.debug.print("\r\n{d} {d}\r\n\r\n", .{ @ptrToInt(@field(value, struct_field.name)), @ptrToInt(default_value) });
-                        //     if (&cur != dflt_ptr) {
-                        //         need_free = true;
-                        //     }
-                        // } else {
-                        //     need_free = true;
-                        // }
                         if (need_free) {
-                            for (@field(value, struct_field.name)) |v| {
+                            for (@field(value, field_name)) |v| {
                                 switch (@TypeOf(v)) {
                                     []const u8 => allocator.free(v),
                                     else => {},
                                 }
                             }
-                            // allocator.destroy(@field(value, struct_field.name));
-                            allocator.free(@field(value, struct_field.name));
+                            allocator.free(@field(value, field_name));
                         }
                     },
                     else => {},
@@ -558,4 +539,3 @@ test "test prefix env" {
     try testing.expect(std.mem.eql(u8, t.job, "job1"));
     try testing.expect(std.mem.eql(u8, t.path, "a path"));
 }
-
